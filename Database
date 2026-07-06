@@ -1,0 +1,63 @@
+import aiosqlite
+
+
+async def init_db():
+
+    async with aiosqlite.connect("users.db") as db:
+
+        await db.execute("""
+        CREATE TABLE IF NOT EXISTS warnings(
+            user_id INTEGER PRIMARY KEY,
+            count INTEGER DEFAULT 0
+        )
+        """)
+
+        await db.commit()
+
+
+
+async def add_warning(user_id):
+
+    async with aiosqlite.connect("users.db") as db:
+
+        await db.execute("""
+        INSERT INTO warnings(user_id,count)
+        VALUES(?,1)
+
+        ON CONFLICT(user_id)
+        DO UPDATE SET count=count+1
+        """,
+        (user_id,))
+
+        await db.commit()
+
+
+
+async def get_warnings(user_id):
+
+    async with aiosqlite.connect("users.db") as db:
+
+        cursor = await db.execute(
+            "SELECT count FROM warnings WHERE user_id=?",
+            (user_id,)
+        )
+
+        result = await cursor.fetchone()
+
+        if result:
+            return result[0]
+
+        return 0
+
+
+
+async def clear_warnings(user_id):
+
+    async with aiosqlite.connect("users.db") as db:
+
+        await db.execute(
+            "DELETE FROM warnings WHERE user_id=?",
+            (user_id,)
+        )
+
+        await db.commit()
