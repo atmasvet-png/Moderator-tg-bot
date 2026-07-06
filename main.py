@@ -1,5 +1,3 @@
-# main.py
-
 import asyncio
 
 from aiogram import Bot, Dispatcher
@@ -24,7 +22,6 @@ from antiflood import check_flood
 from logger import send_log
 
 
-
 bot = Bot(
     token=BOT_TOKEN
 )
@@ -34,62 +31,43 @@ dp = Dispatcher()
 
 
 # =========================
-# Удаление системных сообщений
+# Удаление служебных сообщений
 # =========================
 
 @dp.message()
 async def delete_service_messages(message: Message):
 
-    if message.new_chat_members:
-        await message.delete()
-        return
+    if (
+        message.new_chat_members
+        or message.left_chat_member
+        or message.new_chat_photo
+        or message.delete_chat_photo
+        or message.new_chat_title
+        or message.pinned_message
+    ):
 
-
-    if message.left_chat_member:
-        await message.delete()
-        return
-
-
-    if message.new_chat_photo:
-        await message.delete()
-        return
-
-
-    if message.delete_chat_photo:
-        await message.delete()
-        return
-
-
-    if message.new_chat_title:
-        await message.delete()
-        return
-
-
-    if message.pinned_message:
         await message.delete()
         return
 
 
 
 # =========================
-# Главная модерация
+# Модерация сообщений
 # =========================
 
 @dp.message()
 async def moderation(message: Message):
-
 
     if message.from_user.is_bot:
         return
 
 
     user_id = message.from_user.id
-
     text = message.text
 
 
 
-    # ---- Антифлуд ----
+    # Антифлуд
 
     if check_flood(user_id):
 
@@ -101,23 +79,22 @@ async def moderation(message: Message):
             permissions={
                 "can_send_messages": False
             },
-            until_date=300
+            until_date=600
         )
 
 
         await send_log(
             bot,
-            f"🚨 Антифлуд\n"
-            f"Пользователь: {message.from_user.full_name}\n"
-            f"ID: {user_id}\n"
-            f"Мут: 5 минут"
+            f"🚨 Флуд\n"
+            f"{message.from_user.full_name}\n"
+            f"Мут 10 минут"
         )
 
         return
 
 
 
-    # ---- Запрещённые ссылки ----
+    # Ссылки
 
     if has_link(text):
 
@@ -127,14 +104,14 @@ async def moderation(message: Message):
         await send_log(
             bot,
             f"🔗 Удалена ссылка\n"
-            f"Пользователь: {message.from_user.full_name}"
+            f"{message.from_user.full_name}"
         )
 
         return
 
 
 
-    # ---- Запрещённые слова ----
+    # Запрещённые слова
 
     if contains_bad_words(text):
 
@@ -143,14 +120,12 @@ async def moderation(message: Message):
 
         await add_warning(user_id)
 
-
         warns = await get_warnings(user_id)
 
 
-
         await message.answer(
-            f"⚠️ Нарушение!\n"
-            f"Пользователь: {message.from_user.full_name}\n"
+            f"⚠️ Нарушение\n"
+            f"{message.from_user.full_name}\n"
             f"Предупреждение {warns}/3"
         )
 
@@ -158,10 +133,9 @@ async def moderation(message: Message):
         await send_log(
             bot,
             f"⚠️ Нарушение\n"
-            f"Пользователь: {message.from_user.full_name}\n"
-            f"Предупреждений: {warns}"
+            f"{message.from_user.full_name}\n"
+            f"Варнов: {warns}"
         )
-
 
 
         if warns >= 3:
@@ -176,40 +150,29 @@ async def moderation(message: Message):
             )
 
 
-            await send_log(
-                bot,
-                f"🚫 Бан\n"
-                f"{message.from_user.full_name}"
-            )
-
-
         return
 
 
 
 
-
 # =========================
-# Бан командой
+# Бан
 # =========================
 
 @dp.message(Command("ban"))
-async def ban_command(message: Message):
-
+async def ban_user(message: Message):
 
     if message.from_user.id != ADMIN_ID:
         return
 
 
-
     if not message.reply_to_message:
 
         await message.answer(
-            "Используй команду ответом на сообщение"
+            "Ответь на сообщение пользователя"
         )
 
         return
-
 
 
     user_id = message.reply_to_message.from_user.id
@@ -225,28 +188,96 @@ async def ban_command(message: Message):
     )
 
 
-    await send_log(
-        bot,
-        f"🚫 Ручной бан\n"
-        f"Админ: {message.from_user.full_name}\n"
-        f"Пользователь ID: {user_id}"
+
+# =========================
+# Мут
+# =========================
+
+@dp.message(Command("mute"))
+async def mute_user(message: Message):
+
+    if message.from_user.id != ADMIN_ID:
+        return
+
+
+    if not message.reply_to_message:
+
+        await message.answer(
+            "Ответь на сообщение пользователя"
+        )
+
+        return
+
+
+
+    user_id = message.reply_to_message.from_user.id
+
+
+    await message.chat.restrict(
+        user_id=user_id,
+        permissions={
+            "can_send_messages": False
+        },
+        until_date=600
+    )
+
+
+    await message.answer(
+        "🔇 Мут 10 минут"
     )
 
 
 
+# =========================
+# Размут
+# =========================
+
+@dp.message(Command("unmute"))
+async def unmute_user(message: Message):
+
+    if message.from_user.id != ADMIN_ID:
+        return
+
+
+    if not message.reply_to_message:
+
+        await message.answer(
+            "Ответь на сообщение пользователя"
+        )
+
+        return
+
+
+
+    user_id = message.reply_to_message.from_user.id
+
+
+    await message.chat.restrict(
+        user_id=user_id,
+        permissions={
+            "can_send_messages": True,
+            "can_send_media_messages": True,
+            "can_send_other_messages": True,
+            "can_add_web_page_previews": True
+        }
+    )
+
+
+    await message.answer(
+        "🔊 Мут снят"
+    )
+
 
 
 # =========================
-# Очистить предупреждения
+# Очистка предупреждений
 # =========================
 
 @dp.message(Command("clearwarn"))
 async def clear_warn(message: Message):
 
-
     if message.from_user.id != ADMIN_ID:
         return
-
 
 
     if not message.reply_to_message:
@@ -279,17 +310,11 @@ async def main():
 
     await init_db()
 
-
-    print(
-        "🤖 Moderator bot started"
-    )
-
+    print("🤖 Moderator bot started")
 
     await dp.start_polling(bot)
 
 
 
-
 if __name__ == "__main__":
-
     asyncio.run(main())
