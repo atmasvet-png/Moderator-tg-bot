@@ -1,0 +1,30 @@
+import asyncio
+import logging
+import os
+
+from aiogram import Bot, Dispatcher
+
+TOKEN = os.getenv("TOKEN")
+
+logging.basicConfig(level=logging.INFO)
+
+bot = Bot(TOKEN)
+dp = Dispatcher()
+
+
+@dp.startup()
+async def startup():
+    print("✅ Moderator Bot запущен")
+
+
+@dp.shutdown()
+async def shutdown():
+    print("🛑 Bot остановлен")
+
+
+async def main():
+    await dp.start_polling(bot)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
